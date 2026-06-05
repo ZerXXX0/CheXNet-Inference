@@ -1,0 +1,56 @@
+{
+  "num_images": 10,
+  "exact_match_accuracy": 0.3,
+  "micro": {
+    "precision": 0.578947,
+    "recall": 0.846154,
+    "f1": 0.6875
+  },
+  "macro": {
+    "precision": 0.583333,
+    "recall": 0.7,
+    "f1": 0.597222
+  },
+  "per_class": {
+    "infiltrat": {
+      "tp": 8,
+      "fp": 0,
+      "tn": 0,
+      "fn": 2,
+      "support": 10,
+      "precision": 1.0,
+      "recall": 0.8,
+      "f1": 0.888889
+    },
+    "pneumothorax": {
+      "tp": 0,
+      "fp": 6,
+      "tn": 4,
+      "fn": 0,
+      "support": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "efusi pleura": {
+      "tp": 1,
+      "fp": 2,
+      "tn": 7,
+      "fn": 0,
+      "support": 1,
+      "precision": 0.333333,
+      "recall": 1.0,
+      "f1": 0.5
+    },
+    "atelektasis": {
+      "tp": 2,
+      "fp": 0,
+      "tn": 8,
+      "fn": 0,
+      "support": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  }
+}
