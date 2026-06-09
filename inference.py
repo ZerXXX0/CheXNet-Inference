@@ -68,8 +68,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--test-dir",
         type=Path,
-        default=Path("Splitted dataset") / "images" / "test",
-        help="Path to test images directory.",
+        default=Path("Splitted dataset") / "test",
+        help="Path to test directory (containing class subfolders).",
     )
     parser.add_argument(
         "--output-csv",
@@ -80,8 +80,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--labels-dir",
         type=Path,
-        default=Path("Splitted dataset") / "labels" / "test",
-        help="Path to test labels directory in YOLO format.",
+        default=None,
+        help="Deprecated: labels are now read directly from class subdirectories.",
     )
     parser.add_argument(
         "--metrics-json",
@@ -280,52 +280,46 @@ def get_transform(image_size: int) -> transforms.Compose:
 def collect_images(test_dir: Path) -> List[Path]:
     if not test_dir.exists():
         raise FileNotFoundError(f"Test directory not found: {test_dir}")
-    images = [p for p in sorted(test_dir.iterdir()) if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-    if not images:
+    
+    unique_images: Dict[str, Path] = {}
+    for p in sorted(test_dir.rglob("*")):
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS:
+            if p.name not in unique_images:
+                unique_images[p.name] = p
+                
+    if not unique_images:
         raise ValueError(f"No images found in: {test_dir}")
-    return images
-
-
-def parse_yolo_label_classes(label_file: Path) -> List[int]:
-    if not label_file.exists():
-        return []
-
-    classes: List[int] = []
-    text = label_file.read_text(encoding="utf-8").strip()
-    if not text:
-        return classes
-
-    for line in text.splitlines():
-        parts = line.strip().split()
-        if not parts:
-            continue
-        try:
-            classes.append(int(parts[0]))
-        except ValueError:
-            continue
-    return classes
+    
+    return list(unique_images.values())
 
 
 def load_ground_truth_vectors(
-    image_paths: List[Path],
-    labels_dir: Path,
-    dataset_name_to_index: Dict[str, int],
+    test_dir: Path,
     intersect_map: List[Tuple[int, str, str]],
 ) -> Dict[str, List[int]]:
+    """Build ground truth vectors for all unique images in the test set by scanning the class directories."""
+    dataset_name_to_local_idx = {
+        dataset_display_name: local_idx
+        for local_idx, (_, dataset_display_name, _) in enumerate(intersect_map)
+    }
+
     class_count = len(intersect_map)
     gt_vectors: Dict[str, List[int]] = {}
 
-    for image_path in image_paths:
-        gt = [0] * class_count
-        label_file = labels_dir / f"{image_path.stem}.txt"
-        present_classes = set(parse_yolo_label_classes(label_file))
+    for class_dir in test_dir.iterdir():
+        if not class_dir.is_dir():
+            continue
+        class_name = class_dir.name
+        local_idx = dataset_name_to_local_idx.get(class_name)
 
-        for local_idx, (_, dataset_display_name, _) in enumerate(intersect_map):
-            dataset_index = dataset_name_to_index.get(dataset_display_name)
-            if dataset_index is not None and dataset_index in present_classes:
-                gt[local_idx] = 1
-
-        gt_vectors[image_path.name] = gt
+        for img_path in class_dir.iterdir():
+            if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTENSIONS:
+                img_name = img_path.name
+                if img_name not in gt_vectors:
+                    gt_vectors[img_name] = [0] * class_count
+                
+                if local_idx is not None:
+                    gt_vectors[img_name][local_idx] = 1
 
     return gt_vectors
 
@@ -545,11 +539,8 @@ def main() -> None:
         threshold=args.threshold,
     )
 
-    dataset_name_to_index = {name: idx for idx, name in enumerate(dataset_class_names)}
     gt_vectors = load_ground_truth_vectors(
-        image_paths=image_paths,
-        labels_dir=args.labels_dir,
-        dataset_name_to_index=dataset_name_to_index,
+        test_dir=args.test_dir,
         intersect_map=intersect_map,
     )
 
